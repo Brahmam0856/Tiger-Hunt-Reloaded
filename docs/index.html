@@ -2,205 +2,143 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>🔥 Jungle Hunt: Hunter vs Tiger</title>
+  <title>Tiger Hunt Multiplayer</title>
   <style>
-    canvas { border: 2px solid #222; display: block; margin: 0 auto; }
-    body {
-      background: url('background.jpg') no-repeat center center fixed;
+    canvas {
+      border: 2px solid #333;
+      background: url('forest-bg.png') no-repeat center;
       background-size: cover;
-      text-align: center;
-      color: white;
-      font-family: sans-serif;
     }
-    #scoreboard, #chatbox, #controls {
+    #scoreboard {
       margin-top: 10px;
-    }
-    #chatLog {
-      height: 100px;
-      overflow-y: auto;
-      border: 1px solid #ccc;
-      background: rgba(0,0,0,0.6);
-      padding: 5px;
-    }
-    #wildfire {
-      position: absolute;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      z-index: 10;
+      font-family: Arial, sans-serif;
+      font-size: 18px;
+      background: #e0ffe0;
+      padding: 10px;
+      border-radius: 8px;
+      width: 400px;
     }
   </style>
 </head>
 <body>
-  <h1>🐅 Jungle Hunt: Hunter vs Tiger</h1>
+  <h2>🐅 Tiger Hunt – 2 Player Mode</h2>
   <canvas id="gameCanvas" width="500" height="400"></canvas>
-  <img id="wildfire" src="wildfire.gif" width="500" height="400" style="display:none;" />
-
-  <div id="timer">⏱️ Time left: <span id="countdown">60</span> seconds</div>
-  <div id="scoreboard">Waiting for players…</div>
-
-  <div id="chatbox">
-    <input id="chatInput" placeholder="Say something..." />
-    <button onclick="sendChat()">Send</button>
-    <div id="chatLog"></div>
-  </div>
-
-  <div id="controls">
-    <button onclick="restartGame()">🔁 Retry</button>
-  </div>
-
-  <audio autoplay loop id="bgmusic">
-    <source src="jungle.mp3" type="audio/mpeg" />
-  </audio>
+  <div id="scoreboard">Waiting for scores...</div>
 
   <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const ws = new WebSocket("wss://tiger-hunt-backend.dokuparthybrahm.repl.co");;
-
-    const tiger = { x: 200, y: 100, size: 50 };
-    const hunter = { x: canvas.width / 2 - 25, y: canvas.height - 60, size: 50 };
-    const playerId = "player_" + Math.floor(Math.random() * 10000);
-
-    const tigerImg = new Image();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
     const hunterImg = new Image();
-    const arrowImg = new Image();
-    tigerImg.src = "tiger.png";
+    const tigerImg = new Image();
+    const bloodImg = new Image();
     hunterImg.src = "hunter.png";
-    arrowImg.src = "arrow.png";
+    tigerImg.src = "tiger.png";
+    bloodImg.src = "blood.png";
 
-    let missCount = 0;
-    let isGameOver = false;
-    let countdown = 60;
-    let timerInterval;
+    const tigers = [
+      { x: 80, y: 90, size: 50 },
+      { x: 300, y: 60, size: 50 },
+      { x: 200, y: 150, size: 50 }
+    ];
+
+    const hunter = { x: 220, y: 300, size: 60 };
+    let playerId = "";
+    let gameOver = false;
+
+    const ws = new WebSocket("wss://tiger-hunt-backend.dokuparthybrahm.repl.co");
 
     ws.onmessage = event => {
       const data = JSON.parse(event.data);
+      if (data.type === "init") {
+        playerId = data.playerId;
+        console.log("Connected as", playerId);
+      }
       if (data.type === "leaderboard") {
-        document.getElementById("scoreboard").innerHTML =
-          "<strong>🏆 Leaderboard:</strong><br>" +
-          Object.entries(data.scores).map(([id, score]) => `${id}: ${score} pts`).join("<br>");
-      } else if (data.type === "chat") {
-        const log = document.getElementById("chatLog");
-        log.innerHTML += `<div><strong>${data.playerId}:</strong> ${data.message}</div>`;
-        log.scrollTop = log.scrollHeight;
+        updateScoreboard(data.scores, data.kills);
+      }
+      if (data.type === "gameOver") {
+        showGameOver(data.kills);
       }
     };
 
     function drawScene() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(tigerImg, tiger.x - 25, tiger.y - 25, 50, 50);
+      tigers.forEach(t =>
+        ctx.drawImage(tigerImg, t.x - 25, t.y - 25, t.size, t.size)
+      );
       ctx.drawImage(hunterImg, hunter.x, hunter.y, hunter.size, hunter.size);
     }
 
-    function moveTiger() {
-      if (!isGameOver) {
-        tiger.x = Math.random() * (canvas.width - 50) + 25;
-        tiger.y = Math.random() * (canvas.height - 150) + 25;
-        drawScene();
-      }
-    }
-
-    function shootArrow(x, y) {
-      let posX = hunter.x + 25;
-      let posY = hunter.y;
-      const dx = (x - posX) / 15;
-      const dy = (y - posY) / 15;
-      let step = 0;
-
-      function animate() {
-        if (step < 15 && !isGameOver) {
-          drawScene();
-          ctx.drawImage(arrowImg, posX, posY, 30, 10);
-          posX += dx;
-          posY += dy;
-          step++;
-          requestAnimationFrame(animate);
-        } else {
-          checkHit(x, y);
-        }
-      }
-      animate();
-    }
-
-    function checkHit(targetX, targetY) {
-      const dx = targetX - tiger.x;
-      const dy = targetY - tiger.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= tiger.size / 2) {
-        ws.send(JSON.stringify({ type: "score", playerId, points: 10 }));
-        showBlood(tiger.x, tiger.y);
-        moveTiger();
-      } else {
-        missCount++;
-        if (missCount >= 3) triggerTigerAttack();
-      }
+    function moveTigers() {
+      if (gameOver) return;
+      tigers.forEach(t => {
+        t.x = Math.random() * (canvas.width - t.size) + t.size / 2;
+        t.y = Math.random() * (canvas.height - t.size - 100) + t.size / 2;
+      });
+      drawScene();
     }
 
     function showBlood(x, y) {
-      ctx.beginPath();
-      ctx.arc(x, y, 25, 0, Math.PI * 2);
-      ctx.fillStyle = "red";
-      ctx.fill();
-      ctx.closePath();
-      setTimeout(drawScene, 200);
-    }
-
-    function triggerTigerAttack() {
-      isGameOver = true;
-      const fire = document.getElementById("wildfire");
-      fire.style.display = "block";
-
-      setTimeout(() => {
-        ctx.fillStyle = "black";
-        ctx.globalAlpha = 0.7;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = "white";
-        ctx.font = "26px sans-serif";
-        ctx.fillText("💀 The tiger caught you!", 120, 200);
-        clearInterval(timerInterval);
-      }, 1000);
-    }
-
-    function restartGame() {
-      missCount = 0;
-      isGameOver = false;
-      document.getElementById("wildfire").style.display = "none";
-      countdown = 60;
-      document.getElementById("countdown").textContent = countdown;
-      startTimer();
-      moveTiger();
+      ctx.drawImage(bloodImg, x - 15, y - 15, 30, 30);
     }
 
     canvas.addEventListener("click", e => {
-      if (isGameOver) return;
-      shootArrow(e.offsetX, e.offsetY);
+      if (gameOver) return;
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      checkHit(clickX, clickY);
     });
 
-    function sendChat() {
-      const input = document.getElementById("chatInput");
-      if (input.value.trim()) {
-        ws.send(JSON.stringify({ type: "chat", playerId, message: input.value }));
-        input.value = "";
-      }
+    function checkHit(x, y) {
+      let hit = false;
+      tigers.forEach(t => {
+        const dx = x - t.x;
+        const dy = y - t.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= t.size / 2) {
+          hit = true;
+          ws.send(JSON.stringify({ type: "score", playerId, points: 1 }));
+          showBlood(t.x, t.y);
+          moveTigers();
+        }
+      });
     }
 
     function startTimer() {
-      timerInterval = setInterval(() => {
-        if (!isGameOver && countdown > 0) {
-          countdown--;
-          document.getElementById("countdown").textContent = countdown;
-        } else if (countdown === 0) {
-          triggerTigerAttack();
-          clearInterval(timerInterval);
+      let time = 60;
+      const interval = setInterval(() => {
+        time--;
+        if (time <= 0) {
+          clearInterval(interval);
+          gameOver = true;
+          ctx.fillStyle = "red";
+          ctx.font = "24px Arial";
+          ctx.fillText("🏁 Game Over", 180, 200);
         }
       }, 1000);
+    }
+
+    function updateScoreboard(scores, kills) {
+      let html = `<strong>🔢 Live Kill Count</strong><br>`;
+      for (const id in kills) {
+        html += `👤 ${id}: 🐅 ${kills[id]}<br>`;
+      }
+      document.getElementById("scoreboard").innerHTML = html;
+    }
+
+    function showGameOver(kills) {
+      let html = `<strong>🏁 Final Results</strong><br>`;
+      for (const id in kills) {
+        html += `👤 ${id}: 🐅 ${kills[id]} kills<br>`;
+      }
+      html += `<br>Thanks for hunting!`;
+      document.getElementById("scoreboard").innerHTML = html;
     }
 
     tigerImg.onload = () => {
       drawScene();
-      setInterval(moveTiger, 800);
+      setInterval(moveTigers, 1000); // Speed increased to 1000ms
       startTimer();
     };
   </script>
