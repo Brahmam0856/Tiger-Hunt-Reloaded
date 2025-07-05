@@ -210,11 +210,19 @@
       }, 1000);
     }
 
-    tigerImg.onload = () => {
-      drawScene();
-      setInterval(moveTiger, 1000);
-      startTimer();
-    };
+    let imagesLoaded = 0;
+function checkAllImagesLoaded() {
+  imagesLoaded++;
+  if (imagesLoaded === 3) {
+    drawScene();
+    setInterval(moveTiger, 1000);
+    startTimer();
+  }
+}
+
+tigerImg.onload = checkAllImagesLoaded;
+hunterImg.onload = checkAllImagesLoaded;
+arrowImg.onload = checkAllImagesLoaded;
   </script>
 </body>
 </html>
