@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>🔥 Jungle Hunt: Hunter vs Tiger</title>
+  <title>🐅 Jungle Hunt: Hunter vs Tiger</title>
   <style>
     canvas { border: 2px solid #222; display: block; margin: 0 auto; }
     body {
@@ -32,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>🐅 Jungle Hunt: Hunter vs Tiger</h1>
+  <h1>🔥 Jungle Hunt</h1>
   <canvas id="gameCanvas" width="500" height="400"></canvas>
   <img id="wildfire" src="wildfire.gif" width="500" height="400" style="display:none;" />
 
@@ -69,33 +69,45 @@
     hunterImg.src = "hunter.png";
     arrowImg.src = "arrow.png";
 
-    let missCount = 0;
     let isGameOver = false;
     let countdown = 60;
     let timerInterval;
+    let imagesLoaded = 0;
+
+    function checkImagesLoaded() {
+      imagesLoaded++;
+      if (imagesLoaded === 3) {
+        drawScene();
+        setInterval(moveTiger, 1000);
+        startTimer();
+      }
+    }
+
+    tigerImg.onload = checkImagesLoaded;
+    hunterImg.onload = checkImagesLoaded;
+    arrowImg.onload = checkImagesLoaded;
 
     ws.onmessage = event => {
       const data = JSON.parse(event.data);
       if (data.type === "leaderboard") {
-  let maxScore = -1;
-  let topPlayer = "";
-  for (const [id, score] of Object.entries(data.scores)) {
-    if (score > maxScore) {
-      maxScore = score;
-      topPlayer = id;
-    }
-  }
-
-  document.getElementById("scoreboard").innerHTML =
-    "<strong>🏆 Leaderboard:</strong><br>" +
-    Object.entries(data.scores)
-      .map(([id, score]) =>
-        id === topPlayer
-          ? `<span style='color: gold;'>🌟 ${id}: ${score} pts</span>`
-          : `${id}: ${score} pts`
-      )
-      .join("<br>");
-} else if (data.type === "chat") {
+        let maxScore = -1;
+        let topPlayer = "";
+        for (const [id, score] of Object.entries(data.scores)) {
+          if (score > maxScore) {
+            maxScore = score;
+            topPlayer = id;
+          }
+        }
+        document.getElementById("scoreboard").innerHTML =
+          "<strong>🏆 Leaderboard:</strong><br>" +
+          Object.entries(data.scores)
+            .map(([id, score]) =>
+              id === topPlayer
+                ? `<span style='color: gold;'>🌟 ${id}: ${score} pts</span>`
+                : `${id}: ${score} pts`
+            )
+            .join("<br>");
+      } else if (data.type === "chat") {
         const log = document.getElementById("chatLog");
         log.innerHTML += `<div><strong>${data.playerId}:</strong> ${data.message}</div>`;
         log.scrollTop = log.scrollHeight;
@@ -110,8 +122,8 @@
 
     function moveTiger() {
       if (!isGameOver) {
-        tiger.x = Math.random() * (canvas.width - 50) + 25;
-        tiger.y = Math.random() * (canvas.height - 150) + 25;
+        tiger.x = Math.random() * (canvas.width - tiger.size) + tiger.size / 2;
+        tiger.y = Math.random() * (canvas.height - 150) + tiger.size / 2;
         drawScene();
       }
     }
@@ -138,15 +150,15 @@
       animate();
     }
 
-    function checkHit(targetX, targetY) {
-      const dx = targetX - tiger.x;
-      const dy = targetY - tiger.y;
+    function checkHit(x, y) {
+      const dx = x - tiger.x;
+      const dy = y - tiger.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist <= tiger.size / 2) {
         ws.send(JSON.stringify({ type: "score", playerId, points: 10 }));
         showBlood(tiger.x, tiger.y);
         moveTiger();
-      } 
+      }
     }
 
     function showBlood(x, y) {
@@ -162,7 +174,6 @@
       isGameOver = true;
       const fire = document.getElementById("wildfire");
       fire.style.display = "block";
-
       setTimeout(() => {
         ctx.fillStyle = "black";
         ctx.globalAlpha = 0.7;
@@ -176,7 +187,6 @@
     }
 
     function restartGame() {
-      missCount = 0;
       isGameOver = false;
       document.getElementById("wildfire").style.display = "none";
       countdown = 60;
@@ -197,7 +207,7 @@
         input.value = "";
       }
     }
-    let countdown = 60;
+
     function startTimer() {
       timerInterval = setInterval(() => {
         if (!isGameOver && countdown > 0) {
@@ -209,20 +219,6 @@
         }
       }, 1000);
     }
-
-    let imagesLoaded = 0;
-function checkAllImagesLoaded() {
-  imagesLoaded++;
-  if (imagesLoaded === 3) {
-    drawScene();
-    setInterval(moveTiger, 1000);
-    startTimer();
-  }
-}
-
-tigerImg.onload = checkAllImagesLoaded;
-hunterImg.onload = checkAllImagesLoaded;
-arrowImg.onload = checkAllImagesLoaded;
   </script>
 </body>
 </html>
