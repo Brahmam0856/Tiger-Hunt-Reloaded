@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>🐅 Jungle Hunt: Hunter vs Tiger</title>
+  <title>🐅 Jungle Hunt</title>
   <style>
     canvas { border: 2px solid #222; display: block; margin: 0 auto; }
     body {
@@ -12,7 +12,7 @@
       color: white;
       font-family: sans-serif;
     }
-    #scoreboard, #chatbox, #controls {
+    #chatbox, #scoreboard, #controls {
       margin-top: 10px;
     }
     #chatLog {
@@ -26,30 +26,31 @@
       position: absolute;
       top: 0;
       left: 0;
-      pointer-events: none;
       z-index: 10;
+      pointer-events: none;
+      display: none;
     }
   </style>
 </head>
 <body>
   <h1>🔥 Jungle Hunt</h1>
   <canvas id="gameCanvas" width="500" height="400"></canvas>
-  <img id="wildfire" src="wildfire.gif" width="500" height="400" style="display:none;" />
+  <img id="wildfire" src="wildfire.gif" width="500" height="400" />
 
-  <div id="timer">⏱️ Time left: <span id="countdown">60</span> seconds</div>
-  <div id="scoreboard">Waiting for players…</div>
+  <div id="timer">⏱️ Time left: <span id="countdown">60</span>s</div>
+  <div id="scoreboard">Waiting for leaderboard...</div>
 
   <div id="chatbox">
-    <input id="chatInput" placeholder="Say something..." />
+    <input id="chatInput" placeholder="Speak to the jungle..." />
     <button onclick="sendChat()">Send</button>
     <div id="chatLog"></div>
   </div>
 
   <div id="controls">
-    <button onclick="restartGame()">🔁 Retry</button>
+    <button onclick="restartGame()">🔁 Restart</button>
   </div>
 
-  <audio autoplay loop id="bgmusic">
+  <audio autoplay loop>
     <source src="jungle.mp3" type="audio/mpeg" />
   </audio>
 
@@ -58,55 +59,52 @@
     const ctx = canvas.getContext("2d");
     const ws = new WebSocket("ws://localhost:8080");
 
+    const playerId = "player_" + Math.floor(Math.random() * 10000);
     const tiger = { x: 200, y: 100, size: 50 };
     const hunter = { x: canvas.width / 2 - 25, y: canvas.height - 60, size: 50 };
-    const playerId = "player_" + Math.floor(Math.random() * 10000);
+    let scorePopup = null;
+    let isGameOver = false;
+    let countdown = 60;
+    let timerInterval;
 
     const tigerImg = new Image();
     const hunterImg = new Image();
     const arrowImg = new Image();
+
     tigerImg.src = "tiger.png";
     hunterImg.src = "hunter.png";
     arrowImg.src = "arrow.png";
 
-    let isGameOver = false;
-    let countdown = 60;
-    let timerInterval;
     let imagesLoaded = 0;
-
-    function checkImagesLoaded() {
+    function checkLoaded() {
       imagesLoaded++;
       if (imagesLoaded === 3) {
-        drawScene();
+        render();
         setInterval(moveTiger, 1000);
         startTimer();
       }
     }
 
-    tigerImg.onload = checkImagesLoaded;
-    hunterImg.onload = checkImagesLoaded;
-    arrowImg.onload = checkImagesLoaded;
+    tigerImg.onload = checkLoaded;
+    hunterImg.onload = checkLoaded;
+    arrowImg.onload = checkLoaded;
+
+    tigerImg.onerror = () => console.error("❌ tiger.png failed to load");
+    hunterImg.onerror = () => console.error("❌ hunter.png failed to load");
+    arrowImg.onerror = () => console.error("❌ arrow.png failed to load");
 
     ws.onmessage = event => {
       const data = JSON.parse(event.data);
       if (data.type === "leaderboard") {
-        let maxScore = -1;
-        let topPlayer = "";
-        for (const [id, score] of Object.entries(data.scores)) {
-          if (score > maxScore) {
-            maxScore = score;
-            topPlayer = id;
-          }
-        }
+        const scores = data.scores;
+        const top = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a);
         document.getElementById("scoreboard").innerHTML =
           "<strong>🏆 Leaderboard:</strong><br>" +
-          Object.entries(data.scores)
-            .map(([id, score]) =>
-              id === topPlayer
-                ? `<span style='color: gold;'>🌟 ${id}: ${score} pts</span>`
-                : `${id}: ${score} pts`
-            )
-            .join("<br>");
+          Object.entries(scores).map(([id, score]) =>
+            id === top[0]
+              ? `<span style="color:gold;">🌟 ${id}: ${score}</span>`
+              : `${id}: ${score}`
+          ).join("<br>");
       } else if (data.type === "chat") {
         const log = document.getElementById("chatLog");
         log.innerHTML += `<div><strong>${data.playerId}:</strong> ${data.message}</div>`;
@@ -118,14 +116,25 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(tigerImg, tiger.x - 25, tiger.y - 25, 50, 50);
       ctx.drawImage(hunterImg, hunter.x, hunter.y, hunter.size, hunter.size);
+
+      if (scorePopup) {
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = `rgba(255,255,0,${scorePopup.opacity})`;
+        ctx.fillText(scorePopup.value, scorePopup.x - 10, scorePopup.y - 30);
+        scorePopup.y -= 1;
+        scorePopup.opacity -= 0.02;
+        if (scorePopup.opacity <= 0) scorePopup = null;
+      }
+    }
+
+    function render() {
+      drawScene();
+      if (!isGameOver) requestAnimationFrame(render);
     }
 
     function moveTiger() {
-      if (!isGameOver) {
-        tiger.x = Math.random() * (canvas.width - tiger.size) + tiger.size / 2;
-        tiger.y = Math.random() * (canvas.height - 150) + tiger.size / 2;
-        drawScene();
-      }
+      tiger.x = Math.random() * (canvas.width - tiger.size) + tiger.size / 2;
+      tiger.y = Math.random() * (canvas.height - 150) + tiger.size / 2;
     }
 
     function shootArrow(x, y) {
@@ -135,19 +144,19 @@
       const dy = (y - posY) / 15;
       let step = 0;
 
-      function animate() {
+      function animateArrow() {
         if (step < 15 && !isGameOver) {
           drawScene();
           ctx.drawImage(arrowImg, posX, posY, 30, 10);
           posX += dx;
           posY += dy;
           step++;
-          requestAnimationFrame(animate);
+          requestAnimationFrame(animateArrow);
         } else {
           checkHit(x, y);
         }
       }
-      animate();
+      animateArrow();
     }
 
     function checkHit(x, y) {
@@ -157,6 +166,7 @@
       if (dist <= tiger.size / 2) {
         ws.send(JSON.stringify({ type: "score", playerId, points: 10 }));
         showBlood(tiger.x, tiger.y);
+        scorePopup = { x: tiger.x, y: tiger.y, value: "+10", opacity: 1 };
         moveTiger();
       }
     }
@@ -166,46 +176,7 @@
       ctx.arc(x, y, 25, 0, Math.PI * 2);
       ctx.fillStyle = "red";
       ctx.fill();
-      ctx.closePath();
       setTimeout(drawScene, 200);
-    }
-
-    function triggerTigerAttack() {
-      isGameOver = true;
-      const fire = document.getElementById("wildfire");
-      fire.style.display = "block";
-      setTimeout(() => {
-        ctx.fillStyle = "black";
-        ctx.globalAlpha = 0.7;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = "white";
-        ctx.font = "26px sans-serif";
-        ctx.fillText("💀 The tiger caught you!", 120, 200);
-        clearInterval(timerInterval);
-      }, 1000);
-    }
-
-    function restartGame() {
-      isGameOver = false;
-      document.getElementById("wildfire").style.display = "none";
-      countdown = 60;
-      document.getElementById("countdown").textContent = countdown;
-      startTimer();
-      moveTiger();
-    }
-
-    canvas.addEventListener("click", e => {
-      if (isGameOver) return;
-      shootArrow(e.offsetX, e.offsetY);
-    });
-
-    function sendChat() {
-      const input = document.getElementById("chatInput");
-      if (input.value.trim()) {
-        ws.send(JSON.stringify({ type: "chat", playerId, message: input.value }));
-        input.value = "";
-      }
     }
 
     function startTimer() {
@@ -215,10 +186,47 @@
           document.getElementById("countdown").textContent = countdown;
         } else if (countdown === 0) {
           triggerTigerAttack();
-          clearInterval(timerInterval);
         }
       }, 1000);
     }
+
+    function triggerTigerAttack() {
+      isGameOver = true;
+      document.getElementById("wildfire").style.display = "block";
+      clearInterval(timerInterval);
+      setTimeout(() => {
+        ctx.fillStyle = "black";
+        ctx.globalAlpha = 0.7;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "white";
+        ctx.font = "28px sans-serif";
+        ctx.fillText("💀 The tiger caught you!", 120, 200);
+      }, 1000);
+    }
+
+    function restartGame() {
+      isGameOver = false;
+      document.getElementById("wildfire").style.display = "none";
+      countdown = 60;
+      document.getElementById("countdown").textContent = countdown;
+      scorePopup = null;
+      moveTiger();
+      startTimer();
+      render();
+    }
+
+    function sendChat() {
+      const input = document.getElementById("chatInput");
+      if (input.value.trim()) {
+        ws.send(JSON.stringify({ type: "chat", playerId, message: input.value }));
+        input.value = "";
+      }
+    }
+
+    canvas.addEventListener("click", e => {
+      if (!isGameOver) shootArrow(e.offsetX, e.offsetY);
+    });
   </script>
 </body>
-</html>" " 
+</html>
