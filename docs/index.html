@@ -37,26 +37,25 @@
   </style>
 </head>
 <body>
-  <h2>🐅 Tiger Hunt – Multiplayer</h2>
+  <h2>🐅 Tiger Hunt – Multiplayer Arena</h2>
   <canvas id="gameCanvas" width="500" height="400"></canvas>
   <div id="scoreboard">Waiting for scores...</div>
 
-  <input type="text" id="chatInput" placeholder="💬 Send a message..." />
+  <input type="text" id="chatInput" placeholder="💬 Send message..." />
   <button onclick="sendChat()">Send</button>
   <div id="chatLog"></div>
 
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+
     const hunterImg = new Image();
     const tigerImg = new Image();
     const bloodImg = new Image();
-    const arrowImg = new Image();
 
     hunterImg.src = "hunter.png";
     tigerImg.src = "tiger.png";
     bloodImg.src = "blood.png";
-    arrowImg.src = "arrow.png";
 
     const tigers = [
       { x: 80, y: 90, size: 50 },
@@ -74,7 +73,6 @@
       const data = JSON.parse(event.data);
       if (data.type === "init") {
         playerId = data.playerId;
-        console.log("Connected as", playerId);
       }
       if (data.type === "leaderboard") {
         updateScoreboard(data.scores, data.kills);
@@ -185,7 +183,7 @@
 
     function showChat(sender, msg) {
       const log = document.getElementById("chatLog");
-      log.innerHTML += `${sender}: ${msg}<br>`;
+      log.innerHTML += `<strong>${sender}</strong>: ${msg}<br>`;
       log.scrollTop = log.scrollHeight;
     }
 
