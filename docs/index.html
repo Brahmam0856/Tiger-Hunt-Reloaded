@@ -127,14 +127,30 @@
       document.getElementById("scoreboard").innerHTML = html;
     }
 
-    function showGameOver(kills) {
-      let html = `<strong>🏁 Final Results</strong><br>`;
-      for (const id in kills) {
-        html += `👤 ${id}: 🐅 ${kills[id]} kills<br>`;
-      }
-      html += `<br>Thanks for hunting!`;
-      document.getElementById("scoreboard").innerHTML = html;
+   function showGameOver(kills) {
+  let html = `<strong>🏁 Final Results</strong><br>`;
+  let highestKills = -1;
+  let topHunters = [];
+
+  for (const id in kills) {
+    html += `👤 ${id}: 🐅 ${kills[id]} kills<br>`;
+    if (kills[id] > highestKills) {
+      highestKills = kills[id];
+      topHunters = [id];
+    } else if (kills[id] === highestKills) {
+      topHunters.push(id);
     }
+  }
+
+  if (highestKills >= 0) {
+    const names = topHunters.join(", ");
+    html += `<br>🏆 Highest Killer${topHunters.length > 1 ? "s" : ""}: <strong>${names}</strong> with <strong>${highestKills}</strong> kills`;
+  }
+
+  html += `<br><br>Thanks for hunting!`;
+
+  document.getElementById("scoreboard").innerHTML = html;
+}
 
     tigerImg.onload = () => {
       drawScene();
