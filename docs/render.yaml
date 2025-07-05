@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: tiger-hunt-backend
-    env: node
-    plan: free
-    buildCommand: ""
-    startCommand: node docs/server.js
-    autoDeploy: true
